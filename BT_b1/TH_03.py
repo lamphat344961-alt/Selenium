@@ -15,19 +15,23 @@ print(len(ul_tags))
 
 links = [tag.get_attribute("href") for tag in ul_tags ]
 
-ul_painters = ul_tags[20]
+ul_painters = ul_tags[19]
+
+print(ul_painters)
 
 li_tags = ul_painters.find_elements(By.TAG_NAME, "li")
 
-links = [tag.find_element(By.TAG_NAME, 'a').get_attribute("href") for tag in li_tags ]
+print(li_tags)
 
-titles = [tag.find_element(By.TAG_NAME, 'a').get_attribute("title") for tag in li_tags ]
+# links = [tag.find_element(By.TAG_NAME, 'a').get_attribute("href") for tag in li_tags ]
 
-for link in links:
-    print(link)
+# titles = [tag.find_element(By.TAG_NAME, 'a').get_attribute("title") for tag in li_tags ]
 
-for title in titles:
-    print(title)
+# for link in links:
+#     print(link)
+
+# for title in titles:
+#     print(title)
 
 
 driver.quit()
