@@ -1,122 +1,138 @@
+import os
+import time
+import sqlite3
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time
-import pandas as pd
-import re
 
-# ======================================================
-# PHẦN 1: THU THẬP DANH SÁCH ĐƯỜNG LINK (Giai đoạn 1)
-# ======================================================
+######################################################
+# HÀM TÁCH CHUỖI DÒNG HỌA SĨ
+######################################################
 
-# Danh sách chứa tất cả các link tìm được
-all_links = []
+def parse_painter_line(line: str):
+    """
+    Ví dụ:
+        'Gwilym Prichard (1931–2015) Welsh painter'
+    Trả về:
+        name, birth_year, death_year, nationality
+    """
+    line = line.strip().replace(',', '')
+    n = len(line)
+    i = 0
 
-# Khởi tạo driver 1 lần duy nhất cho giai đoạn này
+    # 1) Tên: chạy tới trước dấu '('
+    while i < n and line[i] != '(':
+        i += 1
+    name = line[:i].strip()
+
+    # Nếu không có '(' thì chỉ trả name, còn lại N/A
+    if i == n:
+        return name, "N/A", "N/A", "N/A"
+
+    # 2) Năm sinh – mất: từ '(' đến ')'
+    i += 1  # bỏ '('
+    j = i
+    while j < n and line[j] != ')':
+        j += 1
+    years_part = line[i:j].strip()   # ví dụ: '1931–2015'
+
+    # Chuẩn hoá dấu gạch (có thể là '-' hoặc '–')
+    years_norm = years_part.replace('–', '-')
+    birth_year = "N/A"
+    death_year = "N/A"
+    if '-' in years_norm:
+        parts = years_norm.split('-', 1)
+        if parts[0].strip().isdigit():
+            birth_year = parts[0].strip()
+        if parts[1].strip().isdigit():
+            death_year = parts[1].strip()
+
+    # 3) Quốc tịch: sau dấu ')', bỏ khoảng trắng, đọc đến khoảng trắng đầu tiên
+    j += 1  # bỏ ')'
+
+    # bỏ các space sau ')'
+    while j < n and line[j] == ' ':
+        j += 1
+
+    k = j
+    while k < n and line[k] != ' ':
+        k += 1
+
+    nationality = line[j:k].strip() if j < n else "N/A"
+
+    return name, birth_year, death_year, nationality
+
+print(parse_painter_line("Gwilym Prichard (1931–2015) Welsh painter"))
+
+
+
+######################################################
+# I. SELENIUM – LẤY DỮ LIỆU TRONG LI
+######################################################
+
 driver = webdriver.Chrome()
+all_data = []
 
-print("--- BẮT ĐẦU GIAI ĐOẠN 1: LẤY LINK ---")
+print("\n--- BẮT ĐẦU QUÉT A–Z ---")
 
-# Ví dụ: Chỉ chạy chữ P (ASCII 80) để test cho nhanh. 
-# Muốn chạy hết từ A-Z thì sửa thành: range(65, 91)
-for i in range(80, 81): 
+for i in range(65, 70):  # A–E để test; muốn full dùng range(65, 91)
     letter = chr(i)
-    url = f"https://en.wikipedia.org/wiki/List_of_painters_by_name_beginning_with_%22{letter}%22"
-    
+    url = f'https://en.wikipedia.org/wiki/List_of_painters_by_name_beginning_with_%22{letter}%22'
+    print(f"\nĐang xử lý chữ: {letter}")
+
     try:
         driver.get(url)
         time.sleep(2)
 
-        link_elements = driver.find_elements(By.XPATH, "//div[@id='mw-content-text']//div[contains(@class,'div-col')]//li//a")
-        
-        # Dự phòng nếu cấu trúc web khác
-        if len(link_elements) == 0:
-            link_elements = driver.find_elements(By.XPATH, "//div[@id='mw-content-text']//ul//li//a")
-            
-        print(f"Chữ {letter}: Tìm thấy {len(link_elements)} họa sĩ.")
-        
-        # Lấy tối đa 5 người đầu tiên 
-        for tag in link_elements[:5]:
-            href = tag.get_attribute("href")
-            if href:
-                all_links.append(href)
-                
-    except Exception as e:
-        print(f"Lỗi ở chữ {letter}: {e}")
+        # lấy tất cả li
+        li_list = driver.find_elements(
+            By.XPATH,
+            "//div[@id='mw-content-text']//div[contains(@class,'div-col')]//li"
+        )
+        if len(li_list) == 0:
+            li_list = driver.find_elements(By.XPATH, "//div[@id='mw-content-text']//ul/li")
 
-# ======================================================
-# PHẦN 2: TRUY CẬP TỪNG LINK ĐỂ LẤY CHI TIẾT (Giai đoạn 2)
-# ======================================================
+        print(f"  -> Tìm thấy {len(li_list)} họa sĩ.")
 
-print(f"\n--- BẮT ĐẦU GIAI ĐOẠN 2: QUÉT {len(all_links)} HỌA SĨ ---")
+        for li in li_list:
+            try:
+                full_text = li.text.strip()
+                if not full_text:
+                    continue
 
-# Tạo list chứa data 
-data_list = []
+                # Lấy href từ thẻ <a>
+                a = li.find_element(By.TAG_NAME, "a")
+                href = a.get_attribute("href")
 
-for link in all_links:
-    print(f"Đang quét: {link}")
-    
-    try:
-        driver.get(link)
-        time.sleep(1) # Nghỉ 
-        
-        # 1. Lấy tên
-        try:
-            name = driver.find_element(By.TAG_NAME, "h1").text
-        except:
-            name = "N/A"
+                # Dùng logic while để tách name, birth, death, nationality
+                name, birth, death, nationality = parse_painter_line(full_text)
 
-        # 2. Lấy ngày sinh (Regex)
-        try:
-            birth_elem = driver.find_element(By.XPATH, "//th[text()='Born']/following-sibling::td").text
-            # Regex bắt: ngày (1-2 số) + tháng (chữ) + năm (4 số)
-            birth = re.findall(r'[0-9]{1,2}+\s+[A-Za-z]+\s+[0-9]{4}', birth_elem)[0]
-        except:
-            birth = "N/A"
+                # Lưu vào list
+                all_data.append({
+                    "Name": name,
+                    "Birth": birth,
+                    "Death": death,
+                    "Nationality": nationality,
+                    "Link": href
+                })
 
-        # 3. Lấy ngày mất (Regex)
-        try:
-            death_elem = driver.find_element(By.XPATH, "//th[text()='Died']/following-sibling::td").text
-            death = re.findall(r'[0-9]{1,2}+\s+[A-Za-z]+\s+[0-9]{4}', death_elem)[0]
-        except:
-            death = "N/A"
-            
-        # 4. Lấy quốc tịch 
-        try:
-            nationality = driver.find_element(By.XPATH, "//th[text()='Nationality']/following-sibling::td").text
-            # --- CẢI TIẾN: Xóa dấu : ở cuối và khoảng trắng thừa ---
-            
-        except:
-            nationality = "N/A"
-            
-        # Lưu vào danh sách tạm
-        data_list.append({
-            'Name': name,
-            'Birth': birth,
-            'Death': death,
-            'Nationality': nationality,
-            'Link': link
-        })
+            except Exception as e:
+                print("  -> lỗi 1 li:", e)
 
     except Exception as e:
-        print(f"Lỗi khi quét link {link}: {e}")
+        print("  -> lỗi toàn trang:", e)
 
-# Đóng trình duyệt sau khi xong hết việc (Tiết kiệm tài nguyên)
+
 driver.quit()
 
-# ======================================================
-# PHẦN 3: LƯU RA FILE EXCEL
-# ======================================================
 
-if len(data_list) > 0:
-    df = pd.DataFrame(data_list)
-    
-    # In ra màn hình xem trước
-    print("\n--- KẾT QUẢ ---")
-    print(df)
-    
-    # Xuất Excel
-    file_name = 'Painters_Final.xlsx'
-    df.to_excel(file_name, index=False)
-    print(f"\nĐã lưu thành công vào file: {file_name}")
+######################################################
+# II. XUẤT EXCEL
+######################################################
+
+if all_data:
+    df = pd.DataFrame(all_data)
+    df.to_excel("Painters_Final.xlsx", index=False)
+    print("\nĐã lưu thành công vào Painters_Final.xlsx")
 else:
     print("Không thu thập được dữ liệu nào.")
