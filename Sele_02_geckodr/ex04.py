@@ -17,7 +17,12 @@ url = 'https://www.reddit.com/login/'
 
 # Truy cập
 driver.get(url)
-time.sleep(10)
+
+
+# chờ ô username xuất hiện
+email_element = WebDriverWait(driver,20).until(
+    EC.presence_of_element_located((By.NAME, "username"))
+)
 
 email = 'dkasco'#input("Nhập Email: ")
 email_element = driver.find_element(By.NAME, "username")
@@ -28,21 +33,36 @@ pass_element = driver.find_element(By.NAME, "password")
 pass_element.send_keys(password)
 pass_element.send_keys(Keys.ENTER)
 
-time.sleep(5)
+time.sleep(10)
 
 
 
 # # Truy cap trang post bai
-# url2 = 'https://www.reddit.com/user/tungit2024/submit/?type=TEXT'
-# driver.get(url2);
-# time.sleep(2)
+url2 = 'https://www.reddit.com/user/dkasco/submit/?type=TEXT'
+driver.get(url2)
+time.sleep(5)
+actionChains = ActionChains(driver)
+for i in range(17):
+    actionChains.key_down(Keys.TAB).perform()
 
 
+actionChains.send_keys('Post tan phat').perform()
+
+
+actionChains.key_down(Keys.TAB)
+actionChains.key_down(Keys.TAB).perform()
+
+actionChains.send_keys('123456').perform()
+
+for i in range(2):
+    actionChains.key_down(Keys.TAB).perform()
+    time.sleep(3)
+
+actionChains.send_keys(Keys.ENTER).perform()
 
 
 time.sleep(120)
 driver.quit()
-
 
 
 
