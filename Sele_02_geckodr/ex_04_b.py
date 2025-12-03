@@ -1,6 +1,6 @@
 import time
 import getpass
-import pandas as pd  # Thêm thư viện này
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -8,20 +8,20 @@ from selenium.webdriver.common.keys import Keys
 
 # 1. Cấu hình Chrome
 chrome_options = Options()
-chrome_options.add_argument("--disable-notifications") # Tắt thông báo
+chrome_options.add_argument("--disable-notifications")   # Tắt popup noti
 driver = webdriver.Chrome(options=chrome_options)
 driver.maximize_window()
 
-# 2. Đăng nhập
+# 2. Đăng nhập Facebook
 url = "https://www.facebook.com/"
 driver.get(url)
 time.sleep(2)
 
-email = input("Nhập Email: ")
+email = 'lamtrantanphat2005@gmail.com'
 email_element = driver.find_element(By.ID, "email")
 email_element.send_keys(email)
 
-password = getpass.getpass("Nhập Mật khẩu: ")
+password = '0979344961'  #getpass.getpass("Nhập Mật khẩu: ")
 pass_element = driver.find_element(By.ID, "pass")
 pass_element.send_keys(password)
 pass_element.send_keys(Keys.ENTER)
@@ -29,76 +29,120 @@ pass_element.send_keys(Keys.ENTER)
 print("Đang đăng nhập... Vui lòng đợi 10 giây.")
 time.sleep(10)
 
-# 3. Cuộn trang (Tăng số lần range lên nếu muốn lấy nhiều bài hơn)
+# 3. Cuộn trang để load nhiều bài hơn
 print("Đang cuộn trang...")
-for i in range(5): 
+for i in range(1):   # tăng số lần range nếu muốn lấy nhiều bài hơn
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     time.sleep(4)
 
 # 4. Thu thập dữ liệu
 print("Đang xử lý dữ liệu...")
-post_containers = driver.find_elements(By.XPATH, "//div[contains(@class, 'x1lliihq')]")
-print(f"Tìm thấy {len(post_containers)} khối nội dung.")
 
-# --- TẠO LIST ĐỂ CHỨA DỮ LIỆU ---
+# MỖI BÀI POST: <div ... data-ad-preview="message">
+post_containers = driver.find_elements(By.XPATH, "//div[@data-ad-preview='message']")
+print(f"Tìm thấy {len(post_containers)} bài post.")
+
 all_posts_data = []
 
 for post in post_containers:
     try:
-        # A. Người đăng (Dùng thuộc tính cố định data-ad-rendering-role)
+        # A. Người đăng
         try:
-            author_el = post.find_element(By.XPATH, ".//div[@data-ad-rendering-role='profile_name']")
-            author = author_el.text
+            author_el = post.find_element(
+                By.XPATH, ".//*[@data-ad-rendering-role='profile_name']"
+            )
+            author = author_el.text.strip()
         except:
-            author = "" # Nếu không tìm thấy tên thì bỏ qua hoặc để rỗng
+            author = ""
 
-        # Chỉ lấy dữ liệu nếu xác định được người đăng (lọc bỏ quảng cáo/rác)
-        if author:
-            # B. Nội dung (Dùng dir="auto" và style)
-            try:
-                content_el = post.find_element(By.XPATH, ".//*[@dir='auto'][contains(@style, 'text-align: start')]")
-                content = content_el.text
-            except:
+        # Bỏ qua nếu không xác định được người đăng
+        if not author:
+            continue
+
+        # B. Nội dung bài viết (text chính)
+        try:
+            content_el = post.find_element(
+                By.XPATH,
+                ".//div[@dir='auto' and contains(@style, 'text-align: start')]"
+            )
+            content = content_el.text.strip()
+            if not content:
                 content = "Không có nội dung text"
+        except:
+            content = "Không có nội dung text"
 
-            # C. Thống kê (Cảm xúc, Comment, Share)
-            # Vào class cha x1n2onr6 -> tìm các class con x135b78x
-            stats_list = []
+        # C. Thống kê (Cảm xúc, Bình luận, Chia sẻ)
+        reactions = ""
+        comments = ""
+        shares = ""
+
+        try:
+            # 1) Từ text "Xem ai đã bày tỏ cảm xúc về tin này"
+            #    đi lên khối cha chứa toàn bộ thống kê
+            stats_root = post.find_element(
+                By.XPATH,
+                ".//span[contains(@aria-label, 'Xem ai đã bày tỏ cảm xúc về tin này')]/ancestor::div[1]"
+            )
+
+            # 2) Lấy số CẢM XÚC
+            #    Thường số like nằm trong <span> ngay trước nút "Tất cả cảm xúc"
             try:
-                stat_items = post.find_elements(By.XPATH, ".//div[contains(@class, 'x1n2onr)] ")
-                for item in stat_items:
-                    txt = item.text
-                    if txt: stats_list.append(txt)
+                reaction_count_el = stats_root.find_element(
+                    By.XPATH,
+                    ".//div[normalize-space()='Tất cả cảm xúc']/preceding::span[@dir='auto'][1]"
+                )
+                reactions = reaction_count_el.text.strip()
             except:
-                pass
-            
-            stats_str = ", ".join(stats_list) # Nối lại thành chuỗi: "500 Like, 20 Comment"
+                reactions = ""
 
-            # --- LƯU VÀO DICTIONARY ---
-            post_item = {
-                'Người đăng': author,
-                'Nội dung': content,
-                'Thống kê': stats_str
-            }
-            
-            # Thêm vào danh sách tổng
-            all_posts_data.append(post_item)
-            
-            # In ra màn hình để theo dõi tiến độ
-            print(f"-> Đã lấy bài của: {author}")
+            # 3) Lấy BÌNH LUẬN (span chứa chữ "Bình luận")
+            try:
+                comment_el = stats_root.find_element(
+                    By.XPATH,
+                    ".//span[@dir='auto'][contains(., 'Bình luận')]"
+                )
+                comments = comment_el.text.strip()
+            except:
+                comments = ""
+
+            # 4) Lấy CHIA SẺ (span chứa chữ "chia sẻ" / "Chia sẻ")
+            try:
+                share_el = stats_root.find_element(
+                    By.XPATH,
+                    ".//span[@dir='auto'][contains(translate(., 'CS', 'cs'), 'chia sẻ')]"
+                )
+                shares = share_el.text.strip()
+            except:
+                shares = ""
+
+        except Exception as e:
+            # Không tìm được khối thống kê cho post này → để trống
+            reactions = ""
+            comments = ""
+            shares = ""
+        post_item = {
+            'Người đăng': author,
+            'Nội dung': content,
+            'Cảm xúc': reactions,
+            'Bình luận': comments,
+            'Chia sẻ': shares,
+
+        }
+        all_posts_data.append(post_item)
+
+        print(f"-> Đã lấy bài của: {author}")
 
     except Exception as e:
         print(f"Lỗi khi xử lý 1 bài viết: {e}")
 
-# 5. Lưu ra Excel (Phần mới thêm)
-if len(all_posts_data) > 0:
+# 5. Lưu ra Excel
+if all_posts_data:
     df = pd.DataFrame(all_posts_data)
-    
-    # In xem trước
-    print("\n--- KẾT QUẢ ---")
+
+    print("\n--- KẾT QUẢ MẪU ---")
     print(df.head())
-    
-    file_name = 'Facebook_Data.xlsx'
+
+    file_name = r"C:\Users\Admin\Desktop\TANPHAT\Manguonmotrongkhoahocjdulieu\Selenium\Sele_02_geckodr\Facebook_Data.xlsx"
     df.to_excel(file_name, index=False)
     print(f"\n✅ Đã lưu thành công vào file: {file_name}")
 else:
