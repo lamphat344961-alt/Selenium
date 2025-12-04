@@ -38,11 +38,11 @@ time.sleep(10)
 
 
 # # Truy cap trang post bai
-url2 = 'https://www.reddit.com/user/dkasco/submit/?type=TEXT'
+url2 = 'https://www.reddit.com/r/boysitinh/submit/'
 driver.get(url2)
 time.sleep(5)
 actionChains = ActionChains(driver)
-for i in range(17):
+for i in range(18):
     actionChains.key_down(Keys.TAB).perform()
 
 
