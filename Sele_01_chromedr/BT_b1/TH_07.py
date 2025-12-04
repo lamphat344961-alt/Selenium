@@ -100,25 +100,19 @@ for idx, table in enumerate(tables, start=1):
     rows = tbody.find_elements(By.TAG_NAME, "tr")
 
     for r_idx, r in enumerate(rows, start=1):
-        # bỏ qua các dòng chỉ có th (sub-header) hoặc dòng trống
         tds = r.find_elements(By.TAG_NAME, "td")
         if not tds:
             continue
 
-        # text từng ô
         row_data = [td.text.strip() for td in tds]
 
-        # Nếu số cột dữ liệu ít hơn header, fill thêm rỗng
         if len(row_data) < len(headers):
             row_data += [""] * (len(headers) - len(row_data))
 
-        # Nếu nhiều hơn header, cắt bớt
         row_data = row_data[:len(headers)]
 
-        # tạo dict cho dòng này
         row_dict = {headers[i]: row_data[i] for i in range(len(headers))}
 
-        # tìm link chi tiết (nếu có) – lấy <a> đầu tiên trong dòng
         detail_url = ""
         try:
             link_el = r.find_element(By.XPATH, ".//a[starts-with(@href, '/wiki/')]")
