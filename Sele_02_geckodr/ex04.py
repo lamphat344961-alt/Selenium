@@ -20,11 +20,11 @@ driver.get(url)
 
 
 # chờ ô username xuất hiện
-email_element = WebDriverWait(driver,20).until(
+email_element = WebDriverWait(driver,120).until(
     EC.presence_of_element_located((By.NAME, "username"))
 )
 
-email = 'dkasco'#input("Nhập Email: ")
+email = 'FriendlyCharity9130'#input("Nhập Email: ")
 email_element = driver.find_element(By.NAME, "username")
 email_element.send_keys(email)
 
